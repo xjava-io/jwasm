@@ -1,0 +1,3 @@
+[submodule "src/test/resources/testsuite"]
+	path = src/test/resources/testsuite
+	url = git@github.com:WebAssembly/testsuite.git
