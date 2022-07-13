@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 
 import static io.xjava.wasm.visitor.LiteralVisitor.*;
+import static java.lang.Double.longBitsToDouble;
+import static java.lang.Float.intBitsToFloat;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -64,6 +66,102 @@ class LiteralVisitorTest {
         assertEquals("integer 0xFFFFFFFFFFF out of u32 range", e.getMessage());
 
         assertThrows(NumberFormatException.class, () -> visitUnsignedInteger("1E10"));
+    }
+
+    @Test
+    void testVisitFloat() {
+        assertEquals(0.0F, intBitsToFloat(visitFloat("0")));
+
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("nan")));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("+nan")));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("-nan")));
+        assertEquals(Float.POSITIVE_INFINITY, intBitsToFloat(visitFloat("inf")));
+        assertEquals(Float.POSITIVE_INFINITY, intBitsToFloat(visitFloat("+inf")));
+        assertEquals(Float.NEGATIVE_INFINITY, intBitsToFloat(visitFloat("-inf")));
+        assertEquals(Float.POSITIVE_INFINITY, intBitsToFloat(visitFloat("1234567890E123456")));
+
+        assertEquals(0.1F, intBitsToFloat(visitFloat("0__.__1__")));
+        assertEquals(0.2F, intBitsToFloat(visitFloat("0__.__2__")));
+        assertEquals(1.2345679E19F, intBitsToFloat(visitFloat("12345678901234567890")));
+        assertEquals(1.2345678E19F, intBitsToFloat(visitFloat("12345678000000000000")));
+        assertEquals(1E10F, intBitsToFloat(visitFloat("1E10")));
+        assertEquals(1E10F, intBitsToFloat(visitFloat("1.E10")));
+        assertEquals(1E10F, intBitsToFloat(visitFloat("1.00E+10")));
+        assertEquals(1E-10F, intBitsToFloat(visitFloat("1.00E-10")));
+        assertEquals(1E-10F, intBitsToFloat(visitFloat("0.1e-9")));
+
+        assertEquals(0x0.1p0F, intBitsToFloat(visitFloat("0x__0__.__1__")));
+        assertEquals(0x0.2p0F, intBitsToFloat(visitFloat("0x__0__.__2__")));
+        assertEquals(2.0988296E19F, intBitsToFloat(visitFloat("0x123456789ABCDEFAB")));
+        assertEquals(2.0988295E19F, intBitsToFloat(visitFloat("0x123456789AB000000")));
+        assertEquals(4.0F, intBitsToFloat(visitFloat("0x1P2")));
+        assertEquals(4.0F, intBitsToFloat(visitFloat("0x1.P2")));
+        assertEquals(4.0F, intBitsToFloat(visitFloat("0x1.00P+2")));
+        assertEquals(0.25F, intBitsToFloat(visitFloat("0x1.00P-2")));
+        assertEquals(0.25F, intBitsToFloat(visitFloat("0x0.1P2")));
+        assertEquals(1.0F / 32, intBitsToFloat(visitFloat("0x0.1p-1")));
+
+        assertThrows(NumberFormatException.class, () -> visitFloat("_0x1"));
+        assertThrows(NumberFormatException.class, () -> visitFloat("0_x1"));
+
+        assertEquals(0x7F800001, visitFloat("+nan:0x1"));
+        assertEquals(0xFF800001, visitFloat("-nan:0x1"));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("-nan:0x1")));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("nan:0x700000")));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("nan:0x7FFFFF")));
+        assertEquals(Float.NaN, intBitsToFloat(visitFloat("nan:0x__400_000__")));
+
+        assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x0"));
+        assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x-1"));
+        assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x800000"));
+    }
+
+    @Test
+    void testVisitDouble() {
+        assertEquals(0.0, longBitsToDouble(visitDouble("0")));
+
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("nan")));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("+nan")));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("-nan")));
+        assertEquals(Double.POSITIVE_INFINITY, longBitsToDouble(visitDouble("inf")));
+        assertEquals(Double.POSITIVE_INFINITY, longBitsToDouble(visitDouble("+inf")));
+        assertEquals(Double.NEGATIVE_INFINITY, longBitsToDouble(visitDouble("-inf")));
+        assertEquals(Double.POSITIVE_INFINITY, longBitsToDouble(visitDouble("1234567890E123456")));
+
+        assertEquals(0.1, longBitsToDouble(visitDouble("0__.__1__")));
+        assertEquals(0.2, longBitsToDouble(visitDouble("0__.__2__")));
+        assertEquals(1.2345678901234567E19, longBitsToDouble(visitDouble("12345678901234567890")));
+        assertEquals(1.2345678901234567E19, longBitsToDouble(visitDouble("12345678901234567000")));
+        assertEquals(1E10, longBitsToDouble(visitDouble("1E10")));
+        assertEquals(1E10, longBitsToDouble(visitDouble("1.E10")));
+        assertEquals(1E10, longBitsToDouble(visitDouble("1.00E+10")));
+        assertEquals(1E-10, longBitsToDouble(visitDouble("1.00E-10")));
+        assertEquals(1E-10, longBitsToDouble(visitDouble("0.1e-9")));
+
+        assertEquals(0x0.1p0, longBitsToDouble(visitDouble("0x__0__.__1__")));
+        assertEquals(0x0.2p0, longBitsToDouble(visitDouble("0x__0__.__2__")));
+        assertEquals(2.0988295479420645E19, longBitsToDouble(visitDouble("0x123456789ABCDEFAB")));
+        assertEquals(2.0988295479420645E19, longBitsToDouble(visitDouble("0x123456789ABCDEF00")));
+        assertEquals(4.0, longBitsToDouble(visitDouble("0x1P2")));
+        assertEquals(4.0, longBitsToDouble(visitDouble("0x1.P2")));
+        assertEquals(4.0, longBitsToDouble(visitDouble("0x1.00P+2")));
+        assertEquals(0.25, longBitsToDouble(visitDouble("0x1.00P-2")));
+        assertEquals(0.25, longBitsToDouble(visitDouble("0x0.1P2")));
+        assertEquals(1.0 / 32, longBitsToDouble(visitDouble("0x0.1p-1")));
+
+        assertThrows(NumberFormatException.class, () -> visitDouble("_0x1"));
+        assertThrows(NumberFormatException.class, () -> visitDouble("0_x1"));
+
+        assertEquals(0x7FF0000000000001L, visitDouble("+nan:0x1"));
+        assertEquals(0xFFF0000000000001L, visitDouble("-nan:0x1"));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("-nan:0x1")));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("nan:0x4000000000000")));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("nan:0xFFFFFFFFFFFFF")));
+        assertEquals(Double.NaN, longBitsToDouble(visitDouble("nan:0x__4000_000_000_000__")));
+
+        assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x0"));
+        assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x-1"));
+        assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x10000000000000"));
     }
 
     @Test

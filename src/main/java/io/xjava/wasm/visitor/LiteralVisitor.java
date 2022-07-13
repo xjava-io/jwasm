@@ -69,6 +69,90 @@ final class LiteralVisitor {
     }
 
     /**
+     * <h3>6.3.2 Floating-Point</h3>
+     * Floating-point values can be represented in either decimal or hexadecimal notation.
+     * The value of a literal must not lie outside the representable range of the corresponding
+     * IEEE 754-2019 type (that is, a numeric value must not overflow to ±infinity),
+     * but it may be rounded to the nearest representable value.
+     * <p>
+     * Note: Rounding can be prevented by using hexadecimal notation with no more significant
+     * bits than supported by the required type.
+     * <p>
+     * Floating-point values may also be written as constants for infinity or canonical
+     * NaN (not a number). Furthermore, arbitrary NaN values may be expressed by providing
+     * an explicit payload value.
+     *
+     * @param literal floating-point literal in WebAssembly text format
+     * @return target float represented by int bits
+     */
+    static int visitFloat(String literal) {
+        char c = literal.charAt(0);
+        boolean negative = c == '-';
+        int index = (c == '-' || c == '+') ? 1 : 0;
+        c = literal.charAt(index);
+        // should be valid floating-point literal
+        if (c == 'i') {
+            // Float.floatToIntBits(Float.NEGATIVE_INFINITY / Float.POSITIVE_INFINITY)
+            return negative ? 0xFF800000 : 0x7F800000;
+        }
+        if (c == 'n') {
+            // +nan -nan nan
+            if (literal.length() < 5) {
+                return negative ? 0xFFC00000 : 0x7FC00000;
+            }
+            // +/- nan:0x1
+            BigInteger num = visitInteger(literal.substring(index + 4));
+            // 23 bit
+            if (num.compareTo(BigInteger.ZERO) > 0 && num.bitLength() <= 23) {
+                return (negative ? 0xFF800000 : 0x7F800000) | num.intValue();
+            }
+            throw new NumberFormatException("For input string: \"" + literal + "\"");
+        }
+        return Float.floatToIntBits(Float.parseFloat(normalizeFloatingPointLiteral(literal, index)));
+    }
+
+    /**
+     * <h3>6.3.2 Floating-Point</h3>
+     * Floating-point values can be represented in either decimal or hexadecimal notation.
+     * The value of a literal must not lie outside the representable range of the corresponding
+     * IEEE 754-2019 type (that is, a numeric value must not overflow to ±infinity),
+     * but it may be rounded to the nearest representable value.
+     * <p>
+     * Note: Rounding can be prevented by using hexadecimal notation with no more significant
+     * bits than supported by the required type.
+     * <p>
+     * Floating-point values may also be written as constants for infinity or canonical
+     * NaN (not a number). Furthermore, arbitrary NaN values may be expressed by providing
+     * an explicit payload value.
+     *
+     * @param literal floating-point literal in WebAssembly text format
+     * @return target double represented by long bits
+     */
+    static long visitDouble(String literal) {
+        char c = literal.charAt(0);
+        boolean negative = c == '-';
+        int index = (c == '-' || c == '+') ? 1 : 0;
+        c = literal.charAt(index);
+        // should be valid floating-point literal
+        if (c == 'i') {
+            // Double.doubleToLongBits(Double.NEGATIVE_INFINITY / Double.POSITIVE_INFINITY)
+            return negative ? 0xFFF0000000000000L : 0x7FF0000000000000L;
+        }
+        if (c == 'n') {
+            // +nan -nan nan
+            if (literal.length() < 5) {
+                return negative ? 0xFFF8000000000000L : 0x7FF8000000000000L;
+            }
+            BigInteger num = visitInteger(literal.substring(index + 4));
+            if (num.compareTo(BigInteger.ZERO) > 0 && num.bitLength() <= 52) {
+                return (negative ? 0xFFF0000000000000L : 0x7FF0000000000000L) | num.longValue();
+            }
+            throw new NumberFormatException("For input string: \"" + literal + "\"");
+        }
+        return Double.doubleToLongBits(Double.parseDouble(normalizeFloatingPointLiteral(literal, index)));
+    }
+
+    /**
      * <h3>6.3.3 Strings</h3>
      * Strings denote sequences of bytes that can represent both textual and binary data.
      * They are enclosed in quotation marks and may contain any character other than ASCII
@@ -140,7 +224,7 @@ final class LiteralVisitor {
                             throw new IllegalArgumentException("invalid characters " + string.substring(start, index));
                         }
                     }
-                    int codePoint = getUnicodeCodePoint(chars, start, index - 1);
+                    int codePoint = getUnicodeCodePoint(string, chars, start, index - 1);
                     if (Character.isBmpCodePoint(codePoint)) {
                         if (Character.isSurrogate((char)codePoint)) {
                             throw new IllegalArgumentException("invalid characters " + string.substring(start, index));
@@ -175,28 +259,44 @@ final class LiteralVisitor {
     }
 
     /**
+     * Normalize floating-point literal.
+     *
+     * @param literal floating-point literal in WebAssembly text format
+     * @param index   index after sign character
+     */
+    private static String normalizeFloatingPointLiteral(String literal, int index) {
+        index++;
+        if (index < literal.length() && literal.charAt(index) == 'x') {
+            if (literal.indexOf('p') < 0 && literal.indexOf('P') < 0) {
+                // hex float, has 0x but no [P|p], append p0
+                literal += "p0";
+            }
+        }
+        return literal.replace("_", "");
+    }
+
+    /**
      * Get code point of &#92;u{hex}.
      *
-     * @param chars      characters
-     * @param beginIndex index of &#92;
-     * @param endIndex   index of &#125;
+     * @param string string literal
+     * @param chars  characters
+     * @param begin  begin index of &#92;
+     * @param end    end index of &#125;
      * @return code point
      */
-    private static int getUnicodeCodePoint(char[] chars, int beginIndex, int endIndex) {
+    private static int getUnicodeCodePoint(String string, char[] chars, int begin, int end) {
         int codePoint = 0;
         // start with '\' 'u' '{'
         // end   with '}'
-        for (int i = beginIndex + 3; i < endIndex; i++) {
+        for (int i = begin + 3; i < end; i++) {
             int digit = hexDigit(chars[i]);
             if (digit < 0) {
-                String characters = new String(chars, beginIndex, endIndex - beginIndex + 1);
-                throw new IllegalArgumentException("invalid characters " + characters);
+                throw new IllegalArgumentException("invalid characters " + string.substring(begin, end + 1));
             }
             codePoint = (codePoint << 4) + digit;
             if (codePoint >= 0x110000) {
                 // out of range
-                String characters = new String(chars, beginIndex + 3, endIndex - beginIndex - 3);
-                throw new IllegalArgumentException("code point out of range " + characters);
+                throw new IllegalArgumentException("code point out of range " + string.substring(begin + 3, end));
             }
         }
         return codePoint;
