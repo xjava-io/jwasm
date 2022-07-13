@@ -1,12 +1,71 @@
 package io.xjava.wasm.visitor;
 
+import java.math.BigInteger;
+
 /**
  * Visitors for string literal and number literal.
  *
  * @author AlphaLxy
  */
 final class LiteralVisitor {
+    private static final BigInteger INTEGER_MAX_VALUE = BigInteger.valueOf(Integer.MAX_VALUE);
+
     private LiteralVisitor() {
+    }
+
+    /**
+     * <h3>6.3.1 Integers</h3>
+     * All integers can be written in either decimal or hexadecimal notation.
+     * In both cases, digits can optionally be separated by underscores.
+     * The allowed syntax for integer literals depends on size and signedness.
+     * Moreover, their value must lie within the range of the respective type.
+     *
+     * @param integer integer literal in WebAssembly text format
+     * @return target integer
+     */
+    static BigInteger visitInteger(String integer) {
+        // INTEGER : Sign? Num | Sign? '0x' HexNum
+        // will reuse this array
+        char[] chars = integer.toCharArray();
+        int length = 0;
+        int radix = 10;
+        for (char c : chars) {
+            if (c == 'x') {
+                // hex number start with '0x', replace to '00'
+                chars[length++] = '0';
+                radix = 16;
+            } else if (c != '_') {
+                // digits can optionally be separated by underscores
+                chars[length++] = c;
+            }
+            // should be valid integer literal, do not check digit
+        }
+        // parse integer by new BigInteger
+        if (radix == 10 && length == chars.length) {
+            // do not need to copy
+            return new BigInteger(integer);
+        }
+        return new BigInteger(new String(chars, 0, length), radix);
+    }
+
+    /**
+     * <h3>6.3.1 Integers</h3>
+     * All integers can be written in either decimal or hexadecimal notation.
+     * In both cases, digits can optionally be separated by underscores.
+     * The allowed syntax for integer literals depends on size and signedness.
+     * Moreover, their value must lie within the range of the respective type.
+     *
+     * @param integer integer literal in WebAssembly text format
+     * @return target unsigned integer [0, 2^31)
+     */
+    static int visitUnsignedInteger(String integer) {
+        BigInteger number = visitInteger(integer);
+        if (number.signum() < 0) {
+            throw new ArithmeticException("integer " + integer + " is negative");
+        } else if (number.compareTo(INTEGER_MAX_VALUE) > 0) {
+            throw new ArithmeticException("integer " + integer + " out of u32 range");
+        }
+        return number.intValue();
     }
 
     /**
@@ -112,8 +171,7 @@ final class LiteralVisitor {
         if (builder == null) {
             return new String(chars, 0, length);
         }
-        builder.append(chars, 0, length);
-        return builder;
+        return builder.append(chars, 0, length);
     }
 
     /**

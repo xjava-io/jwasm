@@ -2,7 +2,9 @@ package io.xjava.wasm.visitor;
 
 import org.junit.jupiter.api.Test;
 
-import static io.xjava.wasm.visitor.LiteralVisitor.visitString;
+import java.math.BigInteger;
+
+import static io.xjava.wasm.visitor.LiteralVisitor.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -11,6 +13,59 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author AlphaLxy
  */
 class LiteralVisitorTest {
+
+    @Test
+    void testVisitInteger() {
+        assertEquals(new BigInteger("123"), visitInteger("123"));
+        assertEquals(new BigInteger("123"), visitInteger("+123"));
+        assertEquals(new BigInteger("-123"), visitInteger("-123"));
+        assertEquals(new BigInteger("123"), visitInteger("000123"));
+        assertEquals(new BigInteger("-123"), visitInteger("__-__0__0__0__1__2__3__"));
+
+        assertEquals(new BigInteger("123", 16), visitInteger("0x123"));
+        assertEquals(new BigInteger("ABC", 16), visitInteger("+0xABC"));
+        assertEquals(new BigInteger("-ABC", 16), visitInteger("-0xABC"));
+        assertEquals(new BigInteger("ABC", 16), visitInteger("0x00ABC"));
+        assertEquals(new BigInteger("-ABC", 16), visitInteger("__-__0__x__0__A__B__C__"));
+
+        // big integer
+        assertEquals(new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFF", 16), visitInteger("0xFFFFFFFFFFFFFFFFFFFFFFFF"));
+    }
+
+    @Test
+    void testVisitUnsignedInteger() {
+        assertEquals(123, visitUnsignedInteger("123"));
+        assertEquals(123, visitUnsignedInteger("+123"));
+        assertEquals(123, visitUnsignedInteger("000123"));
+        assertEquals(123, visitUnsignedInteger("__0__0__0__1__2__3__"));
+
+        assertEquals(0x123, visitUnsignedInteger("0x123"));
+        assertEquals(0xABC, visitUnsignedInteger("+0xABC"));
+        assertEquals(0xABC, visitUnsignedInteger("0x00ABC"));
+        assertEquals(0xABC, visitUnsignedInteger("__0__x__0__A__B__C__"));
+
+        // min value
+        assertEquals(0, visitUnsignedInteger("0x0"));
+        // max value
+        assertEquals(Integer.MAX_VALUE, visitUnsignedInteger("0x7FFFFFFF"));
+
+        Exception e;
+
+        e = assertThrows(ArithmeticException.class, () -> visitUnsignedInteger("-1"));
+        assertEquals("integer -1 is negative", e.getMessage());
+
+        e = assertThrows(ArithmeticException.class, () -> visitUnsignedInteger("-0xFFFFFFFF"));
+        assertEquals("integer -0xFFFFFFFF is negative", e.getMessage());
+
+        e = assertThrows(ArithmeticException.class, () -> visitUnsignedInteger("0xFFFFFFFF"));
+        assertEquals("integer 0xFFFFFFFF out of u32 range", e.getMessage());
+
+        e = assertThrows(ArithmeticException.class, () -> visitUnsignedInteger("0xFFFFFFFFFFF"));
+        assertEquals("integer 0xFFFFFFFFFFF out of u32 range", e.getMessage());
+
+        assertThrows(NumberFormatException.class, () -> visitUnsignedInteger("1E10"));
+    }
+
     @Test
     void testVisitString() {
         Exception e;
