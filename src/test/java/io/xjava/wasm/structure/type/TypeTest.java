@@ -11,6 +11,53 @@ import static org.junit.jupiter.api.Assertions.*;
 class TypeTest {
 
     @Test
+    void testGlobalType() {
+        GlobalType globalType;
+
+        globalType = new GlobalType(true, NumberType.I64);
+        assertTrue(globalType.isMutable());
+        assertFalse(globalType.isImmutable());
+        assertEquals(NumberType.I64, globalType.getValueType());
+
+        globalType = new GlobalType(false, VectorType.V128);
+        assertFalse(globalType.isMutable());
+        assertTrue(globalType.isImmutable());
+        assertEquals(VectorType.V128, globalType.getValueType());
+
+        assertThrows(NullPointerException.class, () -> new GlobalType(false, null));
+    }
+
+    @Test
+    void testMemoryType() {
+        MemoryType memoryType;
+
+        memoryType = new MemoryType(0, null);
+        assertEquals(0, memoryType.getMin());
+        assertNull(memoryType.getMax());
+
+        memoryType = new MemoryType(0, 0);
+        assertEquals(0, memoryType.getMin());
+        assertEquals(0, memoryType.getMax());
+    }
+
+    @Test
+    void testTableType() {
+        TableType tableType;
+
+        tableType = new TableType(0, null, ReferenceType.FUNC_REF);
+        assertEquals(0, tableType.getMin());
+        assertNull(tableType.getMax());
+        assertEquals(ReferenceType.FUNC_REF, tableType.getRefType());
+
+        tableType = new TableType(0, 0, ReferenceType.EXTERN_REF);
+        assertEquals(0, tableType.getMin());
+        assertEquals(0, tableType.getMax());
+        assertEquals(ReferenceType.EXTERN_REF, tableType.getRefType());
+
+        assertThrows(NullPointerException.class, () -> new TableType(0, 0, null));
+    }
+
+    @Test
     void testNumberType() {
         for (NumberType type : NumberType.values()) {
             assertFalse(type.isVectorType());
