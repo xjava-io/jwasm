@@ -1,6 +1,10 @@
 package io.xjava.wasm.visitor;
 
 import java.math.BigInteger;
+import java.util.List;
+
+import io.xjava.wasm.structure.type.VectorShape;
+import io.xjava.wasm.structure.type.VectorType;
 
 /**
  * Visitors for string literal and number literal.
@@ -14,16 +18,94 @@ final class LiteralVisitor {
     }
 
     /**
+     * <h3>2.3.2 Vector Types</h3>
+     * Vector types classify vectors of numeric values processed by vector instructions
+     * (also known as SIMD instructions, single instruction multiple data).
+     * <p>
+     * The type <strong>v128</strong> corresponds to a 128 bit vector of packed integer
+     * or floating-point data. The packed data can be interpreted as signed or unsigned
+     * integers, single or double precision floating-point values, or a single 128 bit
+     * type. The interpretation is determined by individual operations.
+     * <p>
+     * Vector types, like number types are transparent, meaning that their bit patterns
+     * can be observed. Values of vector type can be stored in memories.
+     *
+     * @param vectorType  vector type
+     * @param vectorShape vector shape
+     * @param lanes       lanes
+     * @return vector value represented in {@link BigInteger}
+     */
+    static BigInteger visitVectorConst(@SuppressWarnings("SameParameterValue") VectorType vectorType,
+                                       VectorShape vectorShape, List<String> lanes) {
+        if (lanes.size() != vectorShape.getNumberOfLanes()) {
+            throw new IllegalArgumentException("wrong number of lane literals");
+        }
+        if (vectorType.getBitWidth() != vectorShape.getNumberOfLanes() * vectorShape.getLaneBitWidth()) {
+            throw new IllegalArgumentException();
+        }
+
+        // pad a zero to head
+        byte[] bytes = new byte[(vectorType.getBitWidth() >> 3) + 1];
+        int index = 1;
+        switch (vectorShape) {
+            case F32X4:
+                for (String lane : lanes) {
+                    int value = visitFloat(lane);
+                    bytes[index++] = (byte)(value >> 24);
+                    bytes[index++] = (byte)(value >> 16);
+                    bytes[index++] = (byte)(value >> 8);
+                    bytes[index++] = (byte)value;
+                }
+                break;
+            case F64X2:
+                for (String lane : lanes) {
+                    long value = visitDouble(lane);
+                    bytes[index++] = (byte)(value >> 56);
+                    bytes[index++] = (byte)(value >> 48);
+                    bytes[index++] = (byte)(value >> 40);
+                    bytes[index++] = (byte)(value >> 32);
+                    bytes[index++] = (byte)(value >> 24);
+                    bytes[index++] = (byte)(value >> 16);
+                    bytes[index++] = (byte)(value >> 8);
+                    bytes[index++] = (byte)value;
+                }
+                break;
+            case I8X16:
+            case I16X8:
+            case I32X4:
+            case I64X2:
+                for (String lane : lanes) {
+                    BigInteger value = visitInteger(lane);
+                    if (value.bitLength() > vectorShape.getLaneBitWidth()) {
+                        throw new IllegalArgumentException("constant out of range");
+                    }
+                    byte[] values = value.toByteArray();
+                    int byteWidth = vectorShape.getLaneBitWidth() >> 3;
+                    int length = Math.min(values.length, byteWidth);
+                    int srcPosition = Math.max(0, values.length - byteWidth);
+                    int destPosition = index + byteWidth - length;
+                    System.arraycopy(values, srcPosition, bytes, destPosition, length);
+                    index += byteWidth;
+                }
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+        return new BigInteger(bytes);
+    }
+
+    /**
      * <h3>6.3.1 Integers</h3>
      * All integers can be written in either decimal or hexadecimal notation.
      * In both cases, digits can optionally be separated by underscores.
      * The allowed syntax for integer literals depends on size and signedness.
      * Moreover, their value must lie within the range of the respective type.
      *
-     * @param integer integer literal in WebAssembly text format
+     * @param literal integer literal in WebAssembly text format
      * @return target integer
      */
-    static BigInteger visitInteger(String integer) {
+    static BigInteger visitInteger(Object literal) {
+        String integer = literal.toString();
         // INTEGER : Sign? Num | Sign? '0x' HexNum
         // will reuse this array
         char[] chars = integer.toCharArray();
@@ -58,7 +140,7 @@ final class LiteralVisitor {
      * @param integer integer literal in WebAssembly text format
      * @return target unsigned integer [0, 2^31)
      */
-    static int visitUnsignedInteger(String integer) {
+    static int visitUnsignedInteger(Object integer) {
         BigInteger number = visitInteger(integer);
         if (number.signum() < 0) {
             throw new ArithmeticException("integer " + integer + " is negative");
@@ -83,13 +165,14 @@ final class LiteralVisitor {
      * an explicit payload value.
      *
      * @param literal floating-point literal in WebAssembly text format
-     * @return target float represented by int bits
+     * @return target float represented in int bits
      */
-    static int visitFloat(String literal) {
-        char c = literal.charAt(0);
+    static int visitFloat(Object literal) {
+        String value = literal.toString();
+        char c = value.charAt(0);
         boolean negative = c == '-';
         int index = (c == '-' || c == '+') ? 1 : 0;
-        c = literal.charAt(index);
+        c = value.charAt(index);
         // should be valid floating-point literal
         if (c == 'i') {
             // Float.floatToIntBits(Float.NEGATIVE_INFINITY / Float.POSITIVE_INFINITY)
@@ -97,18 +180,18 @@ final class LiteralVisitor {
         }
         if (c == 'n') {
             // +nan -nan nan
-            if (literal.length() < 5) {
+            if (value.length() < 5) {
                 return negative ? 0xFFC00000 : 0x7FC00000;
             }
             // +/- nan:0x1
-            BigInteger num = visitInteger(literal.substring(index + 4));
+            BigInteger num = visitInteger(value.substring(index + 4));
             // 23 bit
             if (num.compareTo(BigInteger.ZERO) > 0 && num.bitLength() <= 23) {
                 return (negative ? 0xFF800000 : 0x7F800000) | num.intValue();
             }
-            throw new NumberFormatException("For input string: \"" + literal + "\"");
+            throw new NumberFormatException("For input string: \"" + value + "\"");
         }
-        return Float.floatToIntBits(Float.parseFloat(normalizeFloatingPointLiteral(literal, index)));
+        return Float.floatToIntBits(Float.parseFloat(normalizeFloatingPointLiteral(value, index)));
     }
 
     /**
@@ -126,13 +209,14 @@ final class LiteralVisitor {
      * an explicit payload value.
      *
      * @param literal floating-point literal in WebAssembly text format
-     * @return target double represented by long bits
+     * @return target double represented in long bits
      */
-    static long visitDouble(String literal) {
-        char c = literal.charAt(0);
+    static long visitDouble(Object literal) {
+        String value = literal.toString();
+        char c = value.charAt(0);
         boolean negative = c == '-';
         int index = (c == '-' || c == '+') ? 1 : 0;
-        c = literal.charAt(index);
+        c = value.charAt(index);
         // should be valid floating-point literal
         if (c == 'i') {
             // Double.doubleToLongBits(Double.NEGATIVE_INFINITY / Double.POSITIVE_INFINITY)
@@ -140,16 +224,16 @@ final class LiteralVisitor {
         }
         if (c == 'n') {
             // +nan -nan nan
-            if (literal.length() < 5) {
+            if (value.length() < 5) {
                 return negative ? 0xFFF8000000000000L : 0x7FF8000000000000L;
             }
-            BigInteger num = visitInteger(literal.substring(index + 4));
+            BigInteger num = visitInteger(value.substring(index + 4));
             if (num.compareTo(BigInteger.ZERO) > 0 && num.bitLength() <= 52) {
                 return (negative ? 0xFFF0000000000000L : 0x7FF0000000000000L) | num.longValue();
             }
-            throw new NumberFormatException("For input string: \"" + literal + "\"");
+            throw new NumberFormatException("For input string: \"" + value + "\"");
         }
-        return Double.doubleToLongBits(Double.parseDouble(normalizeFloatingPointLiteral(literal, index)));
+        return Double.doubleToLongBits(Double.parseDouble(normalizeFloatingPointLiteral(value, index)));
     }
 
     /**

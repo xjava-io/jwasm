@@ -2,8 +2,15 @@ package io.xjava.wasm.visitor;
 
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
 
+import io.xjava.wasm.structure.type.VectorShape;
+import io.xjava.wasm.structure.type.VectorType;
+
+import static io.xjava.wasm.structure.type.VectorShape.*;
 import static io.xjava.wasm.visitor.LiteralVisitor.*;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Float.intBitsToFloat;
@@ -15,6 +22,76 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author AlphaLxy
  */
 class LiteralVisitorTest {
+
+    @Test
+    void testVisitVectorConst() {
+        assertVectorEquals(I8X16, "FFFFFFFFFFFFFFFF8080808080808080",
+            "0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF -0x80 -0x80 -0x80 -0x80 -0x80 -0x80 -0x80 -0x80");
+        assertVectorEquals(I8X16, "FFFFFFFFFFFFFFFF8080808080808080",
+            "255 255 255 255 255 255 255 255 -128 -128 -128 -128 -128 -128 -128 -128");
+
+        assertVectorEquals(I16X8, "FFFFFFFFFFFFFFFF8000800080008000",
+            "0xFFFF 0xFFFF 0xFFFF 0xFFFF -0x8000 -0x8000 -0x8000 -0x8000");
+        assertVectorEquals(I16X8, "FFFFFFFFFFFFFFFF8000800080008000",
+            "65_535 65_535 65_535 65_535 -32_768 -32_768 -32_768 -32_768");
+        assertVectorEquals(I16X8, "30393039303930391234123412341234",
+            "0_123_45 0_123_45 0_123_45 0_123_45 0x0_1234 0x0_1234 0x0_1234 0x0_1234");
+
+        assertVectorEquals(I32X4, "FFFFFFFFFFFFFFFF8000000080000000",
+            "0xffff_ffff 0xffff_ffff -0x8000_0000 -0x8000_0000");
+        assertVectorEquals(I32X4, "FFFFFFFFFFFFFFFF8000000080000000",
+            "4_294_967_295 4_294_967_295 -2_147_483_648 -2_147_483_648");
+        assertVectorEquals(I32X4, "075BCD15075BCD159ACFFBDF9ACFFBDF",
+            "0_123_456_789 0_123_456_789 0x0_9acf_fbdf 0x0_9acf_fbdf");
+
+        assertVectorEquals(I64X2, "FFFFFFFFFFFFFFFF8000000000000000",
+            "0xffff_ffff_ffff_ffff -0x8000_0000_0000_0000");
+        assertVectorEquals(I64X2, "FFFFFFFFFFFFFFFF8000000000000000",
+            "18_446_744_073_709_551_615 -9_223_372_036_854_775_808");
+        assertVectorEquals(I64X2, "00000000075BCD1501256789ADEFBCEF",
+            "0_123_456_789 0x0125_6789_ADEF_bcef");
+
+        assertVectorEquals(F32X4, "7F000000FF0000007E967699FE967699",
+            "0x1p127 -0x1p127 1e38 -1e38");
+        assertVectorEquals(F32X4, "7F800001FF8000017FFFFFFFFFFFFFFF",
+            "nan:0x1 -nan:0x1 nan:0x7f_ffff -nan:0x7f_ffff");
+        assertVectorEquals(F32X4, "4CEB79A34CEB79A36C7F4D7B2D592FFF",
+            "0123456789. 0123456789.0123456789 0123456789.0123456789e019 0123456789.0123456789e-019");
+        assertVectorEquals(F32X4, "5B91A2B45B91A2B46511A2B45211A2B4",
+            "0x0123456789ABCDEF. 0x0123456789ABCDEF.019aF 0x0123456789ABCDEF.019aFp019 0x0123456789ABCDEF.019aFp-019");
+        assertVectorEquals(F32X4, "7FC00000FFC000007F800000FF800000",
+            "nan -nan inf -inf");
+
+        assertVectorEquals(F64X2, "7FE0000000000000FFE1CCF385EBC8A0",
+            "0x1p1023 -1e308");
+        assertVectorEquals(F64X2, "7FF0000000000001FFFFFFFFFFFFFFFF",
+            "nan:0x1 -nan:0xf_ffff_ffff_ffff");
+        assertVectorEquals(F64X2, "419D6F34540CA4583DAB25FFD636EC12",
+            "0123456789.0123456789 0123456789.0123456789e-019");
+        assertVectorEquals(F64X2, "44F23456789ABCDF43C23456789ABCDF",
+            "0x0123456789ABCDEFabcdef.0123456789ABCDEFabcdef 0x0123456789ABCDEFabcdef.0123456789ABCDEFabcdefp-019");
+        assertVectorEquals(F64X2, "7FF8000000000000FFF0000000000000",
+            "nan -inf");
+
+        Exception e;
+        e = assertThrows(IllegalArgumentException.class,
+            () -> visitVectorConst(VectorType.V128, I16X8, Collections.emptyList()));
+        assertEquals("wrong number of lane literals", e.getMessage());
+
+        e = assertThrows(IllegalArgumentException.class,
+            () -> visitVectorConst(VectorType.V128, I64X2, Arrays.asList("", "", "")));
+        assertEquals("wrong number of lane literals", e.getMessage());
+
+        e = assertThrows(IllegalArgumentException.class,
+            () -> visitVectorConst(VectorType.V128, I64X2, Arrays.asList("0xFFFFFFFFFFFFFFFFF", "")));
+        assertEquals("constant out of range", e.getMessage());
+    }
+
+    private void assertVectorEquals(VectorShape shape, String expected, String literal) {
+        BigInteger vectorConst = visitVectorConst(VectorType.V128, shape, Arrays.asList(literal.split(" +")));
+        assertTrue(vectorConst.bitLength() <= VectorType.V128.getBitWidth());
+        assertEquals(new BigInteger(expected, 16), vectorConst);
+    }
 
     @Test
     void testVisitInteger() {
@@ -32,6 +109,10 @@ class LiteralVisitorTest {
 
         // big integer
         assertEquals(new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFF", 16), visitInteger("0xFFFFFFFFFFFFFFFFFFFFFFFF"));
+
+        // any Object
+        assertEquals(new BigInteger("123"), visitInteger(new BigInteger("123")));
+        assertEquals(new BigInteger("123"), visitInteger(123));
     }
 
     @Test
@@ -66,6 +147,10 @@ class LiteralVisitorTest {
         assertEquals("integer 0xFFFFFFFFFFF out of u32 range", e.getMessage());
 
         assertThrows(NumberFormatException.class, () -> visitUnsignedInteger("1E10"));
+
+        // any Object
+        assertEquals(123, visitUnsignedInteger(new BigInteger("123")));
+        assertEquals(123, visitUnsignedInteger(123));
     }
 
     @Test
@@ -114,6 +199,10 @@ class LiteralVisitorTest {
         assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x0"));
         assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x-1"));
         assertThrows(NumberFormatException.class, () -> visitFloat("+nan:0x800000"));
+
+        // any Object
+        assertEquals(0.1F, intBitsToFloat(visitFloat(new BigDecimal("0.1"))));
+        assertEquals(0.1F, intBitsToFloat(visitFloat(0.1F)));
     }
 
     @Test
@@ -162,6 +251,10 @@ class LiteralVisitorTest {
         assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x0"));
         assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x-1"));
         assertThrows(NumberFormatException.class, () -> visitDouble("+nan:0x10000000000000"));
+
+        // any Object
+        assertEquals(0.1D, longBitsToDouble(visitDouble(new BigDecimal("0.1"))));
+        assertEquals(0.1D, longBitsToDouble(visitDouble(0.1D)));
     }
 
     @Test
