@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 xjava.io
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.xjava.wasm.parser;
 
 import org.antlr.v4.runtime.*;
@@ -38,6 +54,11 @@ class WatParserTest {
             .map(path -> DynamicTest.dynamicTest(path.getFileName().toString(), () -> {
                 String text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
                 if (path.getFileName().toString().equals("comments.wast")) {
+                    // TODO not implemented yet
+                    //  blockchar ::= c:char        (if c != ';' && c != '(')
+                    //              | ';'           (if the next character is not ')')
+                    //              | '('           (if the next character is not ';')
+                    //              | blockcomment
                     text = text.replaceAll(Pattern.quote("(;comment;)((;comment;)"), "");
                     text = text.replaceAll(Pattern.quote("(;comment;)module(;comment;)"), "");
                     text = text.replaceAll(Pattern.quote("(;comment;))(;comment;)"), "");
