@@ -18,6 +18,8 @@ package io.xjava.wasm.structure.type;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -25,6 +27,43 @@ import static org.junit.jupiter.api.Assertions.*;
  * @date 2022/07/14
  */
 class TypeTest {
+
+    @Test
+    void testFunctionType() {
+        FunctionType functionType;
+        Set<FunctionType> set;
+
+        functionType = new FunctionType(Collections.emptyList(), Collections.emptyList());
+        assertTrue(functionType.getParameterTypes().isEmpty());
+        assertTrue(functionType.getResultTypes().isEmpty());
+
+        assertEquals(functionType, new FunctionType(new ArrayList<>(), new ArrayList<>()));
+        assertEquals(functionType.hashCode(), new FunctionType(new ArrayList<>(), new ArrayList<>()).hashCode());
+
+        set = new HashSet<>();
+        set.add(functionType);
+        set.add(functionType);
+        assertEquals(1, set.size());
+
+        List<ValueType> parameterTypes = Arrays.asList(NumberType.I32, NumberType.I64, ReferenceType.FUNC_REF);
+        List<ValueType> resultTypes = Arrays.asList(NumberType.F32, NumberType.F64, VectorType.V128);
+        functionType = new FunctionType(parameterTypes, resultTypes);
+        assertFalse(functionType.getParameterTypes().isEmpty());
+        assertFalse(functionType.getResultTypes().isEmpty());
+
+        FunctionType newFunctionType = new FunctionType(new ArrayList<>(parameterTypes), new ArrayList<>(resultTypes));
+        assertEquals(functionType, newFunctionType);
+        assertEquals(functionType.hashCode(), newFunctionType.hashCode());
+
+        set = new HashSet<>();
+        set.add(functionType);
+        set.add(functionType);
+        assertEquals(1, set.size());
+
+        assertThrows(NullPointerException.class, () -> new FunctionType(null, null));
+
+        assertTrue(Arrays.asList(null, new Object(), functionType).contains(functionType));
+    }
 
     @Test
     void testGlobalType() {
