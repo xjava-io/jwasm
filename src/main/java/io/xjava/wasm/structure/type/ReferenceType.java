@@ -42,6 +42,9 @@ public enum ReferenceType implements ValueType {
      */
     EXTERN_REF((byte)0x6F);
 
+    /**
+     * Reference types are encoded by a single byte.
+     */
     private final byte code;
 
     ReferenceType(byte code) {

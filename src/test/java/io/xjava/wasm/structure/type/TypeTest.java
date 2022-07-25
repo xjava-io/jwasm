@@ -23,10 +23,16 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
+ * Tests for types.
+ *
  * @author AlphaLxy
- * @date 2022/07/14
  */
 class TypeTest {
+
+    @Test
+    void testBlockType() {
+        BlockType.of()
+    }
 
     @Test
     void testFunctionType() {

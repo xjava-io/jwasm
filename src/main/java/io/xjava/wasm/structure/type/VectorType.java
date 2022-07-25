@@ -37,6 +37,9 @@ public enum VectorType implements ValueType {
      */
     V128((byte)0x7B);
 
+    /**
+     * Vector types are encoded by a single byte.
+     */
     private final byte code;
     private final int bitWidth;
 

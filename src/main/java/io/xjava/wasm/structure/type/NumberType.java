@@ -52,6 +52,9 @@ public enum NumberType implements ValueType {
      */
     F64((byte)0x7C);
 
+    /**
+     * Number types are encoded by a single byte.
+     */
     private final byte code;
     private final int bitWidth;
 
